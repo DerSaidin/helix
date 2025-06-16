@@ -556,14 +556,28 @@ impl Selection {
 
     /// Normalizes a `Selection`.
     ///
-    /// Ranges are sorted by [Range::from], with overlapping ranges merged.
+    /// Ranges are sorted by [Range::from].
     fn normalize(mut self) -> Self {
+        self.ranges.sort_unstable_by_key(Range::from);
+        self
+    }
+
+    /// Replaces ranges with one spanning from first to last range.
+    pub fn merge_ranges(self) -> Self {
+        let first = self.ranges.first().unwrap();
+        let last = self.ranges.last().unwrap();
+        Selection::new(smallvec![first.merge(*last)], 0)
+    }
+
+    /// Merges overlapping ranges in a `Selection`.
+    ///
+    /// Ranges are sorted by [Range::from], with overlapping ranges merged.
+    pub fn merge_overlapping_ranges(mut self) -> Self {
         if self.len() < 2 {
             return self;
         }
-        let mut primary = self.ranges[self.primary_index];
-        self.ranges.sort_unstable_by_key(Range::from);
 
+        let mut primary = self.ranges[self.primary_index];
         self.ranges.dedup_by(|curr_range, prev_range| {
             if prev_range.overlaps(curr_range) {
                 let new_range = curr_range.merge(*prev_range);
@@ -584,13 +598,6 @@ impl Selection {
             .unwrap();
 
         self
-    }
-
-    /// Replaces ranges with one spanning from first to last range.
-    pub fn merge_ranges(self) -> Self {
-        let first = self.ranges.first().unwrap();
-        let last = self.ranges.last().unwrap();
-        Selection::new(smallvec![first.merge(*last)], 0)
     }
 
     /// Merges all ranges that are consecutive.
@@ -629,7 +636,7 @@ impl Selection {
             primary_index,
         };
 
-        selection.normalize()
+        selection.normalize().merge_overlapping_ranges()
     }
 
     /// Takes a closure and maps each `Range` over the closure.

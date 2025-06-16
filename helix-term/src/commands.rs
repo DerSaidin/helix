@@ -719,17 +719,21 @@ fn move_impl(cx: &mut Context, move_fn: MoveFn, dir: Direction, behaviour: Movem
     let text_fmt = doc.text_format(view.inner_area(doc).width, None);
     let mut annotations = view.text_annotations(doc, None);
 
-    let selection = doc.selection(view.id).clone().transform(|range| {
-        move_fn(
-            text,
-            range,
-            dir,
-            count,
-            behaviour,
-            &text_fmt,
-            &mut annotations,
-        )
-    });
+    let selection = doc
+        .selection(view.id)
+        .clone()
+        .transform(|range| {
+            move_fn(
+                text,
+                range,
+                dir,
+                count,
+                behaviour,
+                &text_fmt,
+                &mut annotations,
+            )
+        })
+        .merge_overlapping_ranges();
     drop(annotations);
     doc.set_selection(view.id, selection);
 }
@@ -807,15 +811,19 @@ fn extend_visual_line_down(cx: &mut Context) {
 fn goto_line_end_impl(view: &mut View, doc: &mut Document, movement: Movement) {
     let text = doc.text().slice(..);
 
-    let selection = doc.selection(view.id).clone().transform(|range| {
-        let line = range.cursor_line(text);
-        let line_start = text.line_to_char(line);
+    let selection = doc
+        .selection(view.id)
+        .clone()
+        .transform(|range| {
+            let line = range.cursor_line(text);
+            let line_start = text.line_to_char(line);
 
-        let pos = graphemes::prev_grapheme_boundary(text, line_end_char_index(&text, line))
-            .max(line_start);
+            let pos = graphemes::prev_grapheme_boundary(text, line_end_char_index(&text, line))
+                .max(line_start);
 
-        range.put_cursor(text, pos, movement == Movement::Extend)
-    });
+            range.put_cursor(text, pos, movement == Movement::Extend)
+        })
+        .merge_overlapping_ranges();
     doc.set_selection(view.id, selection);
 }
 
@@ -840,12 +848,16 @@ fn extend_to_line_end(cx: &mut Context) {
 fn goto_line_end_newline_impl(view: &mut View, doc: &mut Document, movement: Movement) {
     let text = doc.text().slice(..);
 
-    let selection = doc.selection(view.id).clone().transform(|range| {
-        let line = range.cursor_line(text);
-        let pos = line_end_char_index(&text, line);
+    let selection = doc
+        .selection(view.id)
+        .clone()
+        .transform(|range| {
+            let line = range.cursor_line(text);
+            let pos = line_end_char_index(&text, line);
 
-        range.put_cursor(text, pos, movement == Movement::Extend)
-    });
+            range.put_cursor(text, pos, movement == Movement::Extend)
+        })
+        .merge_overlapping_ranges();
     doc.set_selection(view.id, selection);
 }
 
@@ -870,13 +882,17 @@ fn extend_to_line_end_newline(cx: &mut Context) {
 fn goto_line_start_impl(view: &mut View, doc: &mut Document, movement: Movement) {
     let text = doc.text().slice(..);
 
-    let selection = doc.selection(view.id).clone().transform(|range| {
-        let line = range.cursor_line(text);
+    let selection = doc
+        .selection(view.id)
+        .clone()
+        .transform(|range| {
+            let line = range.cursor_line(text);
 
-        // adjust to start of the line
-        let pos = text.line_to_char(line);
-        range.put_cursor(text, pos, movement == Movement::Extend)
-    });
+            // adjust to start of the line
+            let pos = text.line_to_char(line);
+            range.put_cursor(text, pos, movement == Movement::Extend)
+        })
+        .merge_overlapping_ranges();
     doc.set_selection(view.id, selection);
 }
 
@@ -1000,16 +1016,20 @@ fn extend_to_first_nonwhitespace(cx: &mut Context) {
 fn goto_first_nonwhitespace_impl(view: &mut View, doc: &mut Document, movement: Movement) {
     let text = doc.text().slice(..);
 
-    let selection = doc.selection(view.id).clone().transform(|range| {
-        let line = range.cursor_line(text);
+    let selection = doc
+        .selection(view.id)
+        .clone()
+        .transform(|range| {
+            let line = range.cursor_line(text);
 
-        if let Some(pos) = text.line(line).first_non_whitespace_char() {
-            let pos = pos + text.line_to_char(line);
-            range.put_cursor(text, pos, movement == Movement::Extend)
-        } else {
-            range
-        }
-    });
+            if let Some(pos) = text.line(line).first_non_whitespace_char() {
+                let pos = pos + text.line_to_char(line);
+                range.put_cursor(text, pos, movement == Movement::Extend)
+            } else {
+                range
+            }
+        })
+        .merge_overlapping_ranges();
     doc.set_selection(view.id, selection);
 }
 
@@ -1149,7 +1169,8 @@ fn goto_window(cx: &mut Context, align: Align) {
     let selection = doc
         .selection(view.id)
         .clone()
-        .transform(|range| range.put_cursor(text, pos, cx.editor.mode == Mode::Select));
+        .transform(|range| range.put_cursor(text, pos, cx.editor.mode == Mode::Select))
+        .merge_overlapping_ranges();
     doc.set_selection(view.id, selection);
 }
 
@@ -1176,7 +1197,8 @@ where
     let selection = doc
         .selection(view.id)
         .clone()
-        .transform(|range| move_fn(text, range, count));
+        .transform(|range| move_fn(text, range, count))
+        .merge_overlapping_ranges();
     doc.set_selection(view.id, selection);
 }
 
@@ -1245,7 +1267,8 @@ where
         let selection = doc
             .selection(view.id)
             .clone()
-            .transform(|range| move_fn(text, range, count, behavior));
+            .transform(|range| move_fn(text, range, count, behavior))
+            .merge_overlapping_ranges();
         doc.set_selection(view.id, selection);
     };
     cx.editor.apply_motion(motion)
@@ -1276,7 +1299,8 @@ fn goto_file_start_impl(cx: &mut Context, movement: Movement) {
         let selection = doc
             .selection(view.id)
             .clone()
-            .transform(|range| range.put_cursor(text, 0, movement == Movement::Extend));
+            .transform(|range| range.put_cursor(text, 0, movement == Movement::Extend))
+            .merge_overlapping_ranges();
         push_jump(view, doc);
         doc.set_selection(view.id, selection);
     }
@@ -1297,7 +1321,8 @@ fn goto_file_end_impl(cx: &mut Context, movement: Movement) {
     let selection = doc
         .selection(view.id)
         .clone()
-        .transform(|range| range.put_cursor(text, pos, movement == Movement::Extend));
+        .transform(|range| range.put_cursor(text, pos, movement == Movement::Extend))
+        .merge_overlapping_ranges();
     push_jump(view, doc);
     doc.set_selection(view.id, selection);
 }
@@ -1418,11 +1443,15 @@ where
     let (view, doc) = current!(cx.editor);
     let text = doc.text().slice(..);
 
-    let selection = doc.selection(view.id).clone().transform(|range| {
-        let word = extend_fn(text, range, count);
-        let pos = word.cursor(text);
-        range.put_cursor(text, pos, true)
-    });
+    let selection = doc
+        .selection(view.id)
+        .clone()
+        .transform(|range| {
+            let word = extend_fn(text, range, count);
+            let pos = word.cursor(text);
+            range.put_cursor(text, pos, true)
+        })
+        .merge_overlapping_ranges();
     doc.set_selection(view.id, selection);
 }
 
@@ -1489,47 +1518,51 @@ fn find_char_line_ending(
     let (view, doc) = current!(cx.editor);
     let text = doc.text().slice(..);
 
-    let selection = doc.selection(view.id).clone().transform(|range| {
-        let cursor = range.cursor(text);
-        let cursor_line = range.cursor_line(text);
+    let selection = doc
+        .selection(view.id)
+        .clone()
+        .transform(|range| {
+            let cursor = range.cursor(text);
+            let cursor_line = range.cursor_line(text);
 
-        // Finding the line where we're going to find <ret>. Depends mostly on
-        // `count`, but also takes into account edge cases where we're already at the end
-        // of a line or the beginning of a line
-        let find_on_line = match direction {
-            Direction::Forward => {
-                let on_edge = line_end_char_index(&text, cursor_line) == cursor;
-                let line = cursor_line + count - 1 + (on_edge as usize);
-                if line >= text.len_lines() - 1 {
-                    return range;
-                } else {
-                    line
+            // Finding the line where we're going to find <ret>. Depends mostly on
+            // `count`, but also takes into account edge cases where we're already at the end
+            // of a line or the beginning of a line
+            let find_on_line = match direction {
+                Direction::Forward => {
+                    let on_edge = line_end_char_index(&text, cursor_line) == cursor;
+                    let line = cursor_line + count - 1 + (on_edge as usize);
+                    if line >= text.len_lines() - 1 {
+                        return range;
+                    } else {
+                        line
+                    }
                 }
-            }
-            Direction::Backward => {
-                let on_edge = text.line_to_char(cursor_line) == cursor && !inclusive;
-                let line = cursor_line as isize - (count as isize - 1 + on_edge as isize);
-                if line <= 0 {
-                    return range;
-                } else {
-                    line as usize
+                Direction::Backward => {
+                    let on_edge = text.line_to_char(cursor_line) == cursor && !inclusive;
+                    let line = cursor_line as isize - (count as isize - 1 + on_edge as isize);
+                    if line <= 0 {
+                        return range;
+                    } else {
+                        line as usize
+                    }
                 }
+            };
+
+            let pos = match (direction, inclusive) {
+                (Direction::Forward, true) => line_end_char_index(&text, find_on_line),
+                (Direction::Forward, false) => line_end_char_index(&text, find_on_line) - 1,
+                (Direction::Backward, true) => line_end_char_index(&text, find_on_line - 1),
+                (Direction::Backward, false) => text.line_to_char(find_on_line),
+            };
+
+            if extend {
+                range.put_cursor(text, pos, true)
+            } else {
+                Range::point(range.cursor(text)).put_cursor(text, pos, true)
             }
-        };
-
-        let pos = match (direction, inclusive) {
-            (Direction::Forward, true) => line_end_char_index(&text, find_on_line),
-            (Direction::Forward, false) => line_end_char_index(&text, find_on_line) - 1,
-            (Direction::Backward, true) => line_end_char_index(&text, find_on_line - 1),
-            (Direction::Backward, false) => text.line_to_char(find_on_line),
-        };
-
-        if extend {
-            range.put_cursor(text, pos, true)
-        } else {
-            Range::point(range.cursor(text)).put_cursor(text, pos, true)
-        }
-    });
+        })
+        .merge_overlapping_ranges();
     doc.set_selection(view.id, selection);
 }
 
@@ -1592,24 +1625,28 @@ fn find_char_impl<F, M: CharMatcher + Clone + Copy>(
     let (view, doc) = current!(editor);
     let text = doc.text().slice(..);
 
-    let selection = doc.selection(view.id).clone().transform(|range| {
-        // TODO: use `Range::cursor()` here instead.  However, that works in terms of
-        // graphemes, whereas this function doesn't yet.  So we're doing the same logic
-        // here, but just in terms of chars instead.
-        let search_start_pos = if range.anchor < range.head {
-            range.head - 1
-        } else {
-            range.head
-        };
-
-        search_fn(text, char_matcher, search_start_pos, count, inclusive).map_or(range, |pos| {
-            if extend {
-                range.put_cursor(text, pos, true)
+    let selection = doc
+        .selection(view.id)
+        .clone()
+        .transform(|range| {
+            // TODO: use `Range::cursor()` here instead.  However, that works in terms of
+            // graphemes, whereas this function doesn't yet.  So we're doing the same logic
+            // here, but just in terms of chars instead.
+            let search_start_pos = if range.anchor < range.head {
+                range.head - 1
             } else {
-                Range::point(range.cursor(text)).put_cursor(text, pos, true)
-            }
+                range.head
+            };
+
+            search_fn(text, char_matcher, search_start_pos, count, inclusive).map_or(range, |pos| {
+                if extend {
+                    range.put_cursor(text, pos, true)
+                } else {
+                    Range::point(range.cursor(text)).put_cursor(text, pos, true)
+                }
+            })
         })
-    });
+        .merge_overlapping_ranges();
     doc.set_selection(view.id, selection);
 }
 
@@ -2694,36 +2731,40 @@ fn extend_line_impl(cx: &mut Context, extend: Extend) {
     let (view, doc) = current!(cx.editor);
 
     let text = doc.text();
-    let selection = doc.selection(view.id).clone().transform(|range| {
-        let (start_line, end_line) = range.line_range(text.slice(..));
+    let selection = doc
+        .selection(view.id)
+        .clone()
+        .transform(|range| {
+            let (start_line, end_line) = range.line_range(text.slice(..));
 
-        let start = text.line_to_char(start_line);
-        let end = text.line_to_char(
-            (end_line + 1) // newline of end_line
-                .min(text.len_lines()),
-        );
+            let start = text.line_to_char(start_line);
+            let end = text.line_to_char(
+                (end_line + 1) // newline of end_line
+                    .min(text.len_lines()),
+            );
 
-        // extend to previous/next line if current line is selected
-        let (anchor, head) = if range.from() == start && range.to() == end {
-            match extend {
-                Extend::Above => (end, text.line_to_char(start_line.saturating_sub(count))),
-                Extend::Below => (
-                    start,
-                    text.line_to_char((end_line + count + 1).min(text.len_lines())),
-                ),
-            }
-        } else {
-            match extend {
-                Extend::Above => (end, text.line_to_char(start_line.saturating_sub(count - 1))),
-                Extend::Below => (
-                    start,
-                    text.line_to_char((end_line + count).min(text.len_lines())),
-                ),
-            }
-        };
+            // extend to previous/next line if current line is selected
+            let (anchor, head) = if range.from() == start && range.to() == end {
+                match extend {
+                    Extend::Above => (end, text.line_to_char(start_line.saturating_sub(count))),
+                    Extend::Below => (
+                        start,
+                        text.line_to_char((end_line + count + 1).min(text.len_lines())),
+                    ),
+                }
+            } else {
+                match extend {
+                    Extend::Above => (end, text.line_to_char(start_line.saturating_sub(count - 1))),
+                    Extend::Below => (
+                        start,
+                        text.line_to_char((end_line + count).min(text.len_lines())),
+                    ),
+                }
+            };
 
-        Range::new(anchor, head)
-    });
+            Range::new(anchor, head)
+        })
+        .merge_overlapping_ranges();
 
     doc.set_selection(view.id, selection);
 }
@@ -3802,7 +3843,8 @@ fn goto_line_without_jumplist(
         let selection = doc
             .selection(view.id)
             .clone()
-            .transform(|range| range.put_cursor(text, pos, movement == Movement::Extend));
+            .transform(|range| range.put_cursor(text, pos, movement == Movement::Extend))
+            .merge_overlapping_ranges();
 
         doc.set_selection(view.id, selection);
     }
@@ -3829,7 +3871,8 @@ fn goto_last_line_impl(cx: &mut Context, movement: Movement) {
     let selection = doc
         .selection(view.id)
         .clone()
-        .transform(|range| range.put_cursor(text, pos, movement == Movement::Extend));
+        .transform(|range| range.put_cursor(text, pos, movement == Movement::Extend))
+        .merge_overlapping_ranges();
 
     push_jump(view, doc);
     doc.set_selection(view.id, selection);
@@ -3847,13 +3890,18 @@ fn goto_column_impl(cx: &mut Context, movement: Movement) {
     let count = cx.count();
     let (view, doc) = current!(cx.editor);
     let text = doc.text().slice(..);
-    let selection = doc.selection(view.id).clone().transform(|range| {
-        let line = range.cursor_line(text);
-        let line_start = text.line_to_char(line);
-        let line_end = line_end_char_index(&text, line);
-        let pos = graphemes::nth_next_grapheme_boundary(text, line_start, count - 1).min(line_end);
-        range.put_cursor(text, pos, movement == Movement::Extend)
-    });
+    let selection = doc
+        .selection(view.id)
+        .clone()
+        .transform(|range| {
+            let line = range.cursor_line(text);
+            let line_start = text.line_to_char(line);
+            let line_end = line_end_char_index(&text, line);
+            let pos =
+                graphemes::nth_next_grapheme_boundary(text, line_start, count - 1).min(line_end);
+            range.put_cursor(text, pos, movement == Movement::Extend)
+        })
+        .merge_overlapping_ranges();
     doc.set_selection(view.id, selection);
 }
 
@@ -3874,7 +3922,8 @@ fn goto_last_modification(cx: &mut Context) {
         let selection = doc
             .selection(view.id)
             .clone()
-            .transform(|range| range.put_cursor(text, pos, cx.editor.mode == Mode::Select));
+            .transform(|range| range.put_cursor(text, pos, cx.editor.mode == Mode::Select))
+            .merge_overlapping_ranges();
         doc.set_selection(view.id, selection);
     }
 }
